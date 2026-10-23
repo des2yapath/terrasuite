@@ -1,0 +1,108 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 150 20% 10%;
+    --foreground: 60 20% 85%;
+
+    --card: 150 18% 14%;
+    --card-foreground: 60 20% 85%;
+
+    --popover: 150 18% 14%;
+    --popover-foreground: 60 20% 85%;
+
+    --primary: 49 100% 96%;
+    --primary-foreground: 150 20% 10%;
+
+    --secondary: 150 15% 20%;
+    --secondary-foreground: 60 20% 85%;
+
+    --muted: 150 12% 18%;
+    --muted-foreground: 150 10% 55%;
+
+    --accent: 150 15% 22%;
+    --accent-foreground: 60 20% 85%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 60 20% 95%;
+
+    --border: 150 12% 22%;
+    --input: 150 12% 22%;
+    --ring: 49 100% 96%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 150 18% 12%;
+    --sidebar-foreground: 60 20% 85%;
+    --sidebar-primary: 49 100% 96%;
+    --sidebar-primary-foreground: 150 20% 10%;
+    --sidebar-accent: 150 15% 18%;
+    --sidebar-accent-foreground: 60 20% 85%;
+    --sidebar-border: 150 12% 22%;
+    --sidebar-ring: 49 100% 96%;
+
+    /* Custom tokens */
+    --field-yellow: 50 80% 60%;
+    --field-pink: 340 60% 60%;
+    --field-cyan: 180 60% 55%;
+    --field-green: 120 50% 50%;
+    --field-olive: 70 40% 45%;
+
+    --chart-gold: 42 80% 60%;
+    --chart-cream: 47 52% 93%;
+
+    --surface-outer: 150 25% 18%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+/* MapLibre overrides — keep attribution VISIBLE (required by Esri/CARTO/OSM terms) */
+.maplibregl-ctrl-attrib {
+  background: hsl(150 20% 10% / 0.55);
+  font-size: 10px;
+}
+.maplibregl-ctrl-attrib a {
+  color: hsl(60 20% 85% / 0.75);
+}
+.maplibregl-ctrl-attrib-button {
+  filter: invert(0.85);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+/* Safe area for mobile bottom nav */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Mobile: hide MapLibre default corner controls we replace with our own toolbar */
+@media (max-width: 767px) {
+  .maplibregl-ctrl-top-right,
+  .maplibregl-ctrl-top-left {
+    display: none !important;
+  }
+}
