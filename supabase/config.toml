@@ -1,7 +1,8 @@
 project_id = "YOUR_PROJECT_REF"
 
-# All functions are public (verify_jwt = false) during development.
-# Module 15 flips every function EXCEPT gee-tile-proxy to verify_jwt = true.
+# Production posture: every function requires a user JWT except the tile proxy.
+# MapLibre tile requests cannot attach Authorization headers, so the proxy
+# remains the documented capability-token exception.
 # Functions added per module:
 #   00: keepalive
 #   05: analyze-parcel, gee-analytics, gee-ndvi-tiles, gee-tile-proxy, ndvi-timeseries
@@ -9,24 +10,24 @@ project_id = "YOUR_PROJECT_REF"
 #   09: analyze-parcel-ai, crop-plan-ai
 
 [functions.keepalive]
-verify_jwt = false
+verify_jwt = true
 [functions.analyze-parcel]
-verify_jwt = false
+verify_jwt = true
 
 [functions.ndvi-timeseries]
-verify_jwt = false
+verify_jwt = true
 
 [functions.gee-analytics]
-verify_jwt = false
+verify_jwt = true
 
 [functions.gee-ndvi-tiles]
-verify_jwt = false
+verify_jwt = true
 
 [functions.gee-tile-proxy]
 verify_jwt = false
 
 [functions.soil-data]
-verify_jwt = false
+verify_jwt = true
 
 [functions.analyze-parcel-ai]
 verify_jwt = true

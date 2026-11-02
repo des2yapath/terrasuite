@@ -3,6 +3,7 @@
 // generation; the parcel detail view rehydrates them on open.
 
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 
 export type ReportType = "ai_analysis" | "crop_plan";
 
@@ -35,7 +36,7 @@ export async function saveReport(
   const { error } = await supabase.from("reports").insert({
     parcel_client_id: parcelClientId,
     report_type: reportType,
-    content: content as unknown,
+    content: content as unknown as Json,
   });
   if (error) throw new ReportServiceError(error.message, "save");
 }
@@ -52,7 +53,7 @@ export async function latestReport(
     .eq("report_type", reportType)
     .order("created_at", { ascending: false })
     .limit(1);
-  const rows = unwrap<ReportRow[] | null>(data, error, "latest");
+  const rows = unwrap<ReportRow[] | null>(data as ReportRow[] | null, error, "latest");
   return rows && rows.length > 0 ? rows[0] : null;
 }
 
@@ -63,5 +64,5 @@ export async function listReports(parcelClientId: string): Promise<ReportRow[]> 
     .select("id, parcel_client_id, report_type, content, created_at")
     .eq("parcel_client_id", parcelClientId)
     .order("created_at", { ascending: false });
-  return unwrap<ReportRow[] | null>(data, error, "list") ?? [];
+  return unwrap<ReportRow[] | null>(data as ReportRow[] | null, error, "list") ?? [];
 }

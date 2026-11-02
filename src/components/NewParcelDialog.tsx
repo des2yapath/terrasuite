@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { X, Search, Loader2, Trees, Building2 } from "lucide-react";
 import { searchPlaces, type GeoPlace } from "@/lib/geocoding";
 import { reverseGeocode } from "@/lib/reverse-geocode";
@@ -51,7 +51,7 @@ interface NewParcelDialogProps {
 const NewParcelDialog = ({ coordinates, existingColors, onSave, onCancel }: NewParcelDialogProps) => {
   const [name, setName] = useState("");
   const [regionType, setRegionType] = useState<"rural" | "urban">("rural");
-  const [regionTypeManuallySet, setRegionTypeManuallySet] = useState(false);
+  const regionTypeManualRef = useRef(false);
   const [detecting, setDetecting] = useState(true);
   const [crop, setCrop] = useState("Wheat");
   const [urbanLandUse, setUrbanLandUse] = useState<string>("Residential");
@@ -65,14 +65,21 @@ const NewParcelDialog = ({ coordinates, existingColors, onSave, onCancel }: NewP
 
   const estimatedHa = estimateAreaHa(coordinates);
   const estimatedAcres = haToAcres(estimatedHa);
+  const coordinatesKey = coordinates.map(([longitude, latitude]) => `${longitude},${latitude}`).join(";");
+  // Keep the snapshot keyed by polygon contents so parent rerenders do not
+  // restart detection or erase a manual region selection.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const coordinatesSnapshot = useMemo(() => coordinates, [coordinatesKey]);
 
   /* Auto-detect region type + location from the polygon's center. */
   useEffect(() => {
-    const center = coordinates.reduce(
+    const center = coordinatesSnapshot.reduce(
       (acc, c) => [acc[0] + c[0] / coordinates.length, acc[1] + c[1] / coordinates.length],
       [0, 0] as [number, number],
     );
     let cancelled = false;
+    regionTypeManualRef.current = false;
+    setRegionType("rural");
     (async () => {
       setDetecting(true);
       // Geocode and the cheapest possible GEE land-use probe run in parallel.
@@ -80,19 +87,24 @@ const NewParcelDialog = ({ coordinates, existingColors, onSave, onCancel }: NewP
       const [geocodeResult, geeResult] = await Promise.all([
         reverseGeocode(center[1], center[0]),
         invokeFn<{ land_use?: Record<string, number> | null }>("gee-analytics", {
-          polygon: coordinates,
+          // Send the canonical GeoJSON Polygon ring shape; the edge function
+          // also accepts legacy flat rings for existing callers.
+          polygon: [coordinatesSnapshot],
           analyses: ["land_use"],
         }).catch(() => null),
       ]);
       if (!cancelled) {
         setLocation(geocodeResult.label);
         const builtUp = geeResult?.land_use?.["Built-up"] ?? 0;
-        if (!regionTypeManuallySet && builtUp >= 30) setRegionType("urban");
+        if (!regionTypeManualRef.current && builtUp >= 30) setRegionType("urban");
         setDetecting(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [coordinates, regionTypeManuallySet]);
+  // coordinatesSnapshot and coordinatesKey intentionally represent the same
+  // content-stable polygon dependency.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coordinatesKey, coordinatesSnapshot]);
 
   /* Location autocomplete (debounced). */
   useEffect(() => {
@@ -141,19 +153,19 @@ const NewParcelDialog = ({ coordinates, existingColors, onSave, onCancel }: NewP
             className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring" autoFocus />
         </div>
 
-        {/* Region type (manual override; auto-detect arrives in Module 13) */}
+        {/* Region type (best-effort auto-detect with manual override) */}
         <div>
           <label className="text-xs text-muted-foreground block mb-1.5 flex items-center gap-1.5">
             Region type
             {detecting && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
           </label>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => { setRegionTypeManuallySet(true); setRegionType("rural"); }}
+             <button onClick={() => { regionTypeManualRef.current = true; setRegionType("rural"); }}
               className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs font-medium transition-all ${regionType === "rural" ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:bg-accent/20"}`}>
               <Trees className="w-4 h-4" />
               <div className="text-left"><div>Rural / Land</div><div className="text-[10px] font-normal opacity-70">Farm, forest, field</div></div>
             </button>
-            <button onClick={() => { setRegionTypeManuallySet(true); setRegionType("urban"); }}
+             <button onClick={() => { regionTypeManualRef.current = true; setRegionType("urban"); }}
               className={`flex items-center gap-2 p-2.5 rounded-lg border text-xs font-medium transition-all ${regionType === "urban" ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:bg-accent/20"}`}>
               <Building2 className="w-4 h-4" />
               <div className="text-left"><div>Urban / City</div><div className="text-[10px] font-normal opacity-70">City, town, suburb</div></div>

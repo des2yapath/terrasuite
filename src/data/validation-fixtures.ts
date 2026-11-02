@@ -40,7 +40,7 @@ export interface ValidationFixture {
     /** Typical surface soil pH. */
     soilPh: number;
     /** Expected FAO-style suitability class for the dominant crop. */
-    suitabilityClass: "S1" | "S2" | "S3" | "N"; // highly/moderately/marginally/not suitable
+    suitabilityClass: ReferenceSuitabilityClass;
   };
   expected: {
     /** The engine's top-ranked crop should be this (or in expectedTop3). */
@@ -51,6 +51,9 @@ export interface ValidationFixture {
     healthScoreBand: [number, number];
   };
 }
+
+export type ReferenceSuitabilityClass = "S1" | "S2" | "S3" | "N";
+export type EngineSuitabilityClass = "VS" | "S" | "MS" | "N";
 
 /* ── Shared fixture helpers (soil blocks match SoilGrids-shaped SoilData) ── */
 
@@ -191,7 +194,7 @@ export const VALIDATION_FIXTURES: ValidationFixture[] = [
 ];
 
 /** FAO-style class bands → numeric suitability class for score mapping. */
-export function scoreToClass(score: number): "VS" | "S" | "MS" | "N" {
+export function scoreToClass(score: number): EngineSuitabilityClass {
   if (score >= 75) return "VS";
   if (score >= 50) return "S";
   if (score >= 25) return "MS";

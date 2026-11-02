@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParcels } from "@/state/ParcelsProvider";
 import { useParcelData } from "@/hooks/useParcelData";
 import { LAND_USE_COLORS, ndviLabel } from "@/lib/analytics";
+import type { LandUsePercentages, SuitabilityScores } from "@/lib/gee";
 import { haToAcres, parcelCenter } from "@/data/parcel";
 import { fetchClimateHistory, type MonthlyClimate } from "@/lib/open-meteo";
 import {
@@ -19,14 +20,14 @@ import { GitCompareArrows, X, Loader2, ArrowUpRight, ArrowDownRight, Minus } fro
 import { CHART_GOLD, CHART_GREEN, CHART_BLUE } from "@/components/chart-shared";
 
 /** Suffix gradient/clip IDs so two chart sets coexist in one DOM. */
-function landUseDonut(landUse: Record<string, number> | null, suffix: string) {
+function landUseDonut(landUse: LandUsePercentages | null | undefined, suffix: string) {
   if (!landUse) return null;
   return Object.entries(landUse)
     .map(([name, value]) => ({ name, value, color: LAND_USE_COLORS[name] ?? "#888888", key: `${suffix}-${name}` }))
     .sort((a, b) => b.value - a.value);
 }
 
-function suitabilityRadar(s: Record<string, unknown> | null | undefined) {
+function suitabilityRadar(s: SuitabilityScores | null | undefined) {
   if (!s) return null;
   const rows = [
     { subject: "Soil", value: s.soil_quality },
@@ -117,6 +118,11 @@ export default function ParcelComparison() {
     );
   }
 
+  const leftLandUse = landUseDonut(leftData.gee?.land_use, "L");
+  const rightLandUse = landUseDonut(rightData.gee?.land_use, "R");
+  const leftSuitability = suitabilityRadar(leftData.gee?.suitability);
+  const rightSuitability = suitabilityRadar(rightData.gee?.suitability);
+
   return (
     <div className="h-full overflow-y-auto p-4 space-y-4" data-testid="parcel-comparison">
       <div className="flex items-center justify-between">
@@ -149,16 +155,16 @@ export default function ParcelComparison() {
           <header className="text-xs font-semibold text-foreground">{left.name} <span className="text-muted-foreground font-normal">· {haToAcres(left.area)} acres</span></header>
           {leftData.geeLoading ? <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /> : (
             <>
-              {landUseDonut(leftData.gee?.land_use ?? null, "L") && (
+              {leftLandUse && (
                 <div className="h-36"><ResponsiveContainer width="100%" height="100%">
-                  <PieChart><Pie data={landUseDonut(leftData.gee?.land_use, "L")} dataKey="value" nameKey="name" innerRadius={30} outerRadius={58} stroke="none">
-                    {landUseDonut(leftData.gee?.land_use, "L")!.map((d) => <Cell key={d.key} fill={d.color} />)}
+                  <PieChart><Pie data={leftLandUse} dataKey="value" nameKey="name" innerRadius={30} outerRadius={58} stroke="none">
+                    {leftLandUse.map((d) => <Cell key={d.key} fill={d.color} />)}
                   </Pie><Tooltip /></PieChart>
                 </ResponsiveContainer></div>
               )}
-              {suitabilityRadar(leftData.gee?.suitability) && (
+              {leftSuitability && (
                 <div className="h-44"><ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={suitabilityRadar(leftData.gee?.suitability)!}>
+                  <RadarChart data={leftSuitability}>
                     <PolarGrid stroke="#3a4a42" /><PolarAngleAxis dataKey="subject" tick={{ fill: "#9aa79f", fontSize: 9 }} />
                     <Radar dataKey="value" stroke={CHART_GREEN} fill={CHART_GREEN} fillOpacity={0.25} />
                     <Tooltip />
@@ -185,16 +191,16 @@ export default function ParcelComparison() {
                 {right.name} <span className="text-muted-foreground font-normal">{haToAcres(right.area)} acres</span>
                 <button onClick={() => setCompareId(null)} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
               </header>
-              {landUseDonut(rightData.gee?.land_use ?? null, "R") && (
+              {rightLandUse && (
                 <div className="h-36"><ResponsiveContainer width="100%" height="100%">
-                  <PieChart><Pie data={landUseDonut(rightData.gee?.land_use, "R")} dataKey="value" nameKey="name" innerRadius={30} outerRadius={58} stroke="none">
-                    {landUseDonut(rightData.gee?.land_use, "R")!.map((d) => <Cell key={d.key} fill={d.color} />)}
+                  <PieChart><Pie data={rightLandUse} dataKey="value" nameKey="name" innerRadius={30} outerRadius={58} stroke="none">
+                    {rightLandUse.map((d) => <Cell key={d.key} fill={d.color} />)}
                   </Pie><Tooltip /></PieChart>
                 </ResponsiveContainer></div>
               )}
-              {suitabilityRadar(rightData.gee?.suitability) && (
+              {rightSuitability && (
                 <div className="h-44"><ResponsiveContainer width="100%" height="100%">
-                  <RadarChart data={suitabilityRadar(rightData.gee?.suitability)!}>
+                  <RadarChart data={rightSuitability}>
                     <PolarGrid stroke="#3a4a42" /><PolarAngleAxis dataKey="subject" tick={{ fill: "#9aa79f", fontSize: 9 }} />
                     <Radar dataKey="value" stroke={CHART_BLUE} fill={CHART_BLUE} fillOpacity={0.25} />
                     <Tooltip />
@@ -258,7 +264,7 @@ export default function ParcelComparison() {
             <Tooltip />
             <Legend />
             {leftClimate && <Area data={leftClimate} dataKey="accumulated" name={`${left.name} precip`} stroke={CHART_GOLD} fill={CHART_GOLD} fillOpacity={0.15} />}
-            {rightClimate && <Area data={rightClimate} dataKey="accumulated" name={`${right.name} precip`} stroke={CHART_BLUE} fill={CHART_BLUE} fillOpacity={0.15} />}
+            {right && rightClimate && <Area data={rightClimate} dataKey="accumulated" name={`${right.name} precip`} stroke={CHART_BLUE} fill={CHART_BLUE} fillOpacity={0.15} />}
           </AreaChart>
         </ResponsiveContainer></div>
       ) : null}

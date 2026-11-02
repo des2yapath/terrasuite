@@ -94,8 +94,10 @@ export function detectEdgeCase(
     Array.isArray((rawCoordinates[0] as unknown[])[0])
     ? rawCoordinates[0] as [number, number][]
     : rawCoordinates as [number, number][];
-  const avgLat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
-  if (Math.abs(avgLat) > EDGE_THRESHOLDS.POLAR_ABS_LAT) {
+  const avgLat = coords.length > 0
+    ? coords.reduce((s, c) => s + c[1], 0) / coords.length
+    : null;
+  if (avgLat != null && Math.abs(avgLat) > EDGE_THRESHOLDS.POLAR_ABS_LAT) {
     return { type: "polar", ...COPY.polar, message: COPY.polar.message(`±${Math.abs(avgLat).toFixed(1)}° latitude`), blocksPlanning: COPY.polar.blocks };
   }
   if (POLAR_KEYWORDS.some((k) => loc.includes(k))) {

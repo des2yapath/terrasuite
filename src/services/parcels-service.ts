@@ -3,6 +3,7 @@
 // Postgres injects auth.uid() from the caller's JWT.
 
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import type { Parcel } from "@/data/parcel";
 
 export class ParcelServiceError extends Error {
@@ -54,7 +55,7 @@ function parcelToInsert(p: Parcel) {
     color: p.color,
     parcel_group: p.group ?? null,
     ndvi_change: p.ndviChange ?? null,
-    coordinates: p.coordinates as unknown,
+    coordinates: p.coordinates as unknown as Json,
   };
 }
 

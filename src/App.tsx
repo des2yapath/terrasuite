@@ -11,6 +11,7 @@ import SignupPage from "@/pages/SignupPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
 import NotFound from "@/pages/NotFound";
 import ValidationDashboard from "@/pages/ValidationDashboard";
+import VivaDashboard from "@/pages/VivaDashboard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,24 +23,31 @@ const queryClient = new QueryClient({
   },
 });
 
+const AuthenticatedRoutes = () => (
+  <AuthProvider>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route element={<AppLayout />}>
+        <Route path="/" element={<Workspace />} />
+        <Route path="/validation" element={<ValidationDashboard />} />
+      </Route>
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  </AuthProvider>
+);
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route element={<AppLayout />}>
-              <Route path="/" element={<Workspace />} />
-              <Route path="/validation" element={<ValidationDashboard />} />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
+        <Routes>
+          <Route path="/viva" element={<VivaDashboard />} />
+          <Route path="*" element={<AuthenticatedRoutes />} />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

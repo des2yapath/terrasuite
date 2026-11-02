@@ -4,10 +4,10 @@
 // evidence for the report. Behind auth (RequireAuth) but not in the main
 // nav — it's the academic-evidence surface, not a user feature.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlaskConical, Download, FileText, Loader2 } from "lucide-react";
 import {
-  runAllFixtures, summarize, type FixtureResult, type ValidationSummary,
+  buildValidationCsv, runAllFixtures, summarize, type FixtureResult, type ValidationSummary,
 } from "@/lib/validation";
 import { VALIDATION_FIXTURES } from "@/data/validation-fixtures";
 import { jsPDF } from "jspdf";
@@ -16,37 +16,9 @@ import {
 } from "recharts";
 import { CHART_GREEN, CHART_GOLD, CHART_BLUE, CHART_RED, CustomChartTooltip, axisStroke, gridStroke } from "@/components/chart-shared";
 
-/* ── CSV export ── */
-
-function toCsv(results: FixtureResult[], summary: ValidationSummary): string {
-  const head = [
-    "fixture", "region", "engine_top_crop", "reference_crop", "top_crop_agrees",
-    "expected_in_top3", "expected_in_plan", "water_access", "water_band_ok",
-    "health_score", "health_band_ok", "engine_class", "reference_class",
-    "class_agrees", "engine_score", "reference_score", "abs_error", "build_ms",
-  ].join(",");
-  const rows = results.map((r) => [
-    r.fixtureId, `"${r.region}"`, r.topCrop, r.expectedTopCrop, r.topCropAgrees,
-    r.expectedInTop3, r.expectedInPlan, r.waterAccess, r.waterAccessBandOk,
-    r.healthScore, r.healthScoreBandOk, r.engineClass, r.referenceClass,
-    r.classAgrees, r.engineTopScore.toFixed(3), r.referenceScore.toFixed(3),
-    Math.abs(r.engineTopScore - r.referenceScore).toFixed(3), r.buildMs,
-  ].join(","));
-  const meta = [
-    "", `summary,fixtures=${summary.fixtureCount}`,
-    `summary,top_crop_agreement_pct=${summary.topCropAgreementPct}`,
-    `summary,expected_in_top3_pct=${summary.expectedInTop3Pct}`,
-    `summary,class_agreement_pct=${summary.classAgreementPct}`,
-    `summary,score_mae=${summary.scoreMae}`,
-    `summary,score_rmse=${summary.scoreRmse}`,
-    `summary,max_build_ms=${summary.maxBuildMs}`,
-  ];
-  return [head, ...rows, ...meta].join("\n");
-}
-
 /* ── PDF export ── */
 
-function exportPdf(results: FixtureResult[], summary: ValidationSummary) {
+function exportValidationPdf(results: FixtureResult[], summary: ValidationSummary) {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const width = doc.internal.pageSize.getWidth();
   let y = 20;
@@ -62,10 +34,14 @@ function exportPdf(results: FixtureResult[], summary: ValidationSummary) {
     `Fixtures: ${summary.fixtureCount}`,
     `Top-crop agreement: ${summary.topCropAgreementPct.toFixed(0)}%`,
     `Reference crop in engine top-3: ${summary.expectedInTop3Pct.toFixed(0)}%`,
+    `Reference crop in generated plan: ${summary.expectedInPlanPct.toFixed(0)}%`,
     `Suitability-class agreement (S1-S3/N vs VS/S/MS/N): ${summary.classAgreementPct.toFixed(0)}%`,
     `Score MAE: ${summary.scoreMae} (0-1 scale)`,
     `Score RMSE: ${summary.scoreRmse} (0-1 scale)`,
+    `Water-access bands within expected: ${summary.waterAccessBandOkPct.toFixed(0)}%`,
+    `Health-score bands within expected: ${summary.healthScoreBandOkPct.toFixed(0)}%`,
     `Slowest plan build: ${summary.maxBuildMs} ms (gate: <10 ms)`,
+    `Performance gate: ${summary.allWithinPerfGate ? "pass" : "fail"}`,
   ];
   metricLines.forEach((l) => { doc.text(l, 18, y); y += 5; });
   y += 4;
@@ -98,6 +74,11 @@ function exportPdf(results: FixtureResult[], summary: ValidationSummary) {
 export default function ValidationDashboard() {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<FixtureResult[] | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
 
   const summary = useMemo(() => (results ? summarize(results) : null), [results]);
 
@@ -111,7 +92,7 @@ export default function ValidationDashboard() {
     setRunning(true);
     // setTimeout lets the spinner paint before the (fast, <50 ms total)
     // synchronous engine run blocks the frame.
-    setTimeout(() => {
+    timerRef.current = setTimeout(() => {
       setResults(runAllFixtures());
       setRunning(false);
     }, 30);
@@ -134,7 +115,7 @@ export default function ValidationDashboard() {
             {results && (
               <>
                 <button onClick={() => {
-                  const csv = toCsv(results, summarize(results));
+                  const csv = buildValidationCsv(results, summarize(results));
                   const blob = new Blob([csv], { type: "text/csv" });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
@@ -144,7 +125,7 @@ export default function ValidationDashboard() {
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-foreground hover:bg-accent transition-colors">
                   <Download className="w-3.5 h-3.5" /> CSV
                 </button>
-                <button onClick={() => exportPdf(results, summarize(results))}
+                <button onClick={() => exportValidationPdf(results, summarize(results))}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-foreground hover:bg-accent transition-colors">
                   <FileText className="w-3.5 h-3.5" /> PDF
                 </button>
@@ -167,7 +148,7 @@ export default function ValidationDashboard() {
           </div>
         )}
 
-        {summary && (
+        {results && summary && (
           <>
             {/* Metric strip */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

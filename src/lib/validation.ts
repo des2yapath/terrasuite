@@ -16,7 +16,13 @@
 // shapes" — the mirror is verified against explicit expected values in the
 // 05 spec tables).
 
-import { VALIDATION_FIXTURES, scoreToClass, type ValidationFixture } from "@/data/validation-fixtures";
+import {
+  VALIDATION_FIXTURES,
+  scoreToClass,
+  type EngineSuitabilityClass,
+  type ReferenceSuitabilityClass,
+  type ValidationFixture,
+} from "@/data/validation-fixtures";
 import { buildLocalPlan, rankCropsForLocalEnvironment } from "@/lib/crop-engine";
 import { detectRegion } from "@/data/agronomy";
 
@@ -70,8 +76,8 @@ export interface FixtureResult {
   healthScore: number;
   healthScoreBandOk: boolean;
   /** FAO-style class agreement: engine top score → class vs reference class. */
-  engineClass: "VS" | "S" | "MS" | "N";
-  referenceClass: "S1" | "S2" | "S3" | "N";
+  engineClass: EngineSuitabilityClass;
+  referenceClass: ReferenceSuitabilityClass;
   classAgrees: boolean;
   /** Engine top composite score (0..1) — for MAE/RMSE across fixtures. */
   engineTopScore: number;
@@ -81,18 +87,20 @@ export interface FixtureResult {
   buildMs: number;
 }
 
-const CLASS_MIDPOINTS: Record<ValidationFixture["reference"]["suitabilityClass"], number> = {
+const CLASS_MIDPOINTS: Record<ReferenceSuitabilityClass, number> = {
   S1: 87.5, S2: 62.5, S3: 37.5, N: 12.5,
 };
 
-/* S1↔VS, S2↔S, S3↔MS are the agreed equivalents (documented mapping). */
-function classesEquivalent(engineClass: FixtureResult["engineClass"], ref: ValidationFixture["reference"]["suitabilityClass"]): boolean {
-  switch (ref) {
-    case "S1": return engineClass === "VS";
-    case "S2": return engineClass === "S";
-    case "S3": return engineClass === "MS";
-    case "N": return engineClass === "N";
-  }
+/* S1↔VS, S2↔S, S3↔MS are the agreed equivalents. */
+const CLASS_EQUIVALENTS: Record<ReferenceSuitabilityClass, EngineSuitabilityClass> = {
+  S1: "VS",
+  S2: "S",
+  S3: "MS",
+  N: "N",
+};
+
+function classesEquivalent(engineClass: EngineSuitabilityClass, referenceClass: ReferenceSuitabilityClass): boolean {
+  return CLASS_EQUIVALENTS[referenceClass] === engineClass;
 }
 
 function inBand(value: number, [lo, hi]: [number, number]): boolean {
@@ -102,9 +110,9 @@ function inBand(value: number, [lo, hi]: [number, number]): boolean {
 /** Run ONE fixture through the engine + mirrors. Pure apart from Date.now()
  *  for the timing evidence (timing is not asserted on). */
 export function runFixture(fixture: ValidationFixture): FixtureResult {
-  const t0 = Date.now();
+  const t0 = performance.now();
   const plan = buildLocalPlan(fixture.input);
-  const buildMs = Date.now() - t0;
+  const buildMs = Math.round((performance.now() - t0) * 100) / 100;
 
   const region = detectRegion(fixture.input.location);
   const regionCrops = region?.crops ?? [];
@@ -170,12 +178,48 @@ export interface ValidationSummary {
   allWithinPerfGate: boolean;
 }
 
+function csvCell(value: string | number | boolean): string {
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/** Serialize fixture rows and every aggregate metric for spreadsheet review. */
+export function buildValidationCsv(results: FixtureResult[], summary: ValidationSummary): string {
+  const header = [
+    "fixture", "region", "engine_top_crop", "reference_crop", "top_crop_agrees",
+    "expected_in_top3", "expected_in_plan", "water_access", "water_band_ok",
+    "health_score", "health_band_ok", "engine_class", "reference_class",
+    "class_agrees", "engine_score", "reference_score", "abs_error", "build_ms",
+  ].join(",");
+  const rows = results.map((result) => [
+    result.fixtureId, result.region, result.topCrop, result.expectedTopCrop, result.topCropAgrees,
+    result.expectedInTop3, result.expectedInPlan, result.waterAccess, result.waterAccessBandOk,
+    result.healthScore, result.healthScoreBandOk, result.engineClass, result.referenceClass,
+    result.classAgrees, result.engineTopScore.toFixed(3), result.referenceScore.toFixed(3),
+    Math.abs(result.engineTopScore - result.referenceScore).toFixed(3), result.buildMs,
+  ].map(csvCell).join(","));
+  const summaryRows = [
+    ["summary", "fixtures", summary.fixtureCount],
+    ["summary", "top_crop_agreement_pct", summary.topCropAgreementPct],
+    ["summary", "expected_in_top3_pct", summary.expectedInTop3Pct],
+    ["summary", "expected_in_plan_pct", summary.expectedInPlanPct],
+    ["summary", "class_agreement_pct", summary.classAgreementPct],
+    ["summary", "score_mae", summary.scoreMae],
+    ["summary", "score_rmse", summary.scoreRmse],
+    ["summary", "water_access_band_ok_pct", summary.waterAccessBandOkPct],
+    ["summary", "health_score_band_ok_pct", summary.healthScoreBandOkPct],
+    ["summary", "max_build_ms", summary.maxBuildMs],
+    ["summary", "all_within_perf_gate", summary.allWithinPerfGate],
+  ].map((row) => row.map(csvCell).join(","));
+  return [header, ...rows, ...summaryRows].join("\n");
+}
+
 export function summarize(results: FixtureResult[]): ValidationSummary {
-  const n = results.length || 1;
-  const pct = (ok: (r: FixtureResult) => boolean) => (results.filter(ok).length / n) * 100;
+  const n = results.length;
+  const pct = (ok: (r: FixtureResult) => boolean) => n === 0 ? 0 : (results.filter(ok).length / n) * 100;
   const errs = results.map((r) => r.engineTopScore - r.referenceScore);
-  const mae = errs.reduce((s, e) => s + Math.abs(e), 0) / n;
-  const rmse = Math.sqrt(errs.reduce((s, e) => s + e * e, 0) / n);
+  const mae = n === 0 ? 0 : errs.reduce((s, e) => s + Math.abs(e), 0) / n;
+  const rmse = n === 0 ? 0 : Math.sqrt(errs.reduce((s, e) => s + e * e, 0) / n);
   return {
     fixtureCount: results.length,
     topCropAgreementPct: pct((r) => r.topCropAgrees),
@@ -186,8 +230,8 @@ export function summarize(results: FixtureResult[]): ValidationSummary {
     scoreRmse: Math.round(rmse * 1000) / 1000,
     waterAccessBandOkPct: pct((r) => r.waterAccessBandOk),
     healthScoreBandOkPct: pct((r) => r.healthScoreBandOk),
-    maxBuildMs: Math.max(...results.map((r) => r.buildMs)),
-    allWithinPerfGate: results.every((r) => r.buildMs < 10),
+    maxBuildMs: results.length ? Math.max(...results.map((r) => r.buildMs)) : 0,
+    allWithinPerfGate: results.length > 0 && results.every((r) => r.buildMs < 10),
   };
 }
 

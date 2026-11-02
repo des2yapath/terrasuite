@@ -5,6 +5,8 @@
  * Desktop-first frame; Module 14 replaces this whole tree on mobile.
  */
 import { useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import MobileWorkspace from "@/pages/MobileWorkspace";
 import UserMenu from "@/components/UserMenu";
 import MapView from "@/components/MapView";
 import { useParcels } from "@/state/ParcelsProvider";
@@ -13,8 +15,11 @@ import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 import ParcelDetailView from "@/components/ParcelDetailView";
 
 const Workspace = () => {
+  const isMobile = useIsMobile();
   const [view, setView] = useState<"map" | "analytics">("map");
   const { setActiveParcel, detailParcel, openDetail } = useParcels();
+
+  if (isMobile) return <MobileWorkspace />;
 
   return (
     <div className="h-screen w-screen bg-surface-outer flex items-center justify-center p-6">

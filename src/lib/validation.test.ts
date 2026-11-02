@@ -8,7 +8,7 @@ import { VALIDATION_FIXTURES, scoreToClass } from "@/data/validation-fixtures";
 import {
   runFixture, runAllFixtures, summarize,
   waterAccessFromRainfall, climateFromWaterAccess, soilQualityFromSoc,
-  topographyFromSlope, healthScoreFromNdvi,
+  topographyFromSlope, healthScoreFromNdvi, buildValidationCsv,
 } from "@/lib/validation";
 
 /* ── Parity: mirrored formulas vs the Module 05 spec tables ── */
@@ -132,5 +132,33 @@ describe("validation summary", () => {
   it("water-access and health bands 100% inside expected", () => {
     expect(summary.waterAccessBandOkPct).toBe(100);
     expect(summary.healthScoreBandOkPct).toBe(100);
+  });
+
+  it("reports the plan coverage metric and performance gate", () => {
+    expect(summary.expectedInPlanPct).toBeGreaterThanOrEqual(80);
+    expect(summary.maxBuildMs).toBeGreaterThanOrEqual(0);
+    expect(summary.allWithinPerfGate).toBe(true);
+  });
+
+  it("handles an empty result set without invalid metrics", () => {
+    const empty = summarize([]);
+    expect(empty.fixtureCount).toBe(0);
+    expect(empty.topCropAgreementPct).toBe(0);
+    expect(empty.scoreMae).toBe(0);
+    expect(empty.scoreRmse).toBe(0);
+    expect(empty.maxBuildMs).toBe(0);
+    expect(empty.allWithinPerfGate).toBe(false);
+  });
+
+  it("exports every fixture row and aggregate metric to CSV", () => {
+    const results = runAllFixtures();
+    const csv = buildValidationCsv(results, summarize(results));
+
+    expect(csv.split("\n")[0]).toContain("fixture,region,engine_top_crop");
+    for (const fixture of VALIDATION_FIXTURES) expect(csv).toContain(fixture.id);
+    expect(csv).toContain("summary,expected_in_plan_pct");
+    expect(csv).toContain("summary,water_access_band_ok_pct");
+    expect(csv).toContain("summary,health_score_band_ok_pct");
+    expect(csv).toContain("summary,all_within_perf_gate,true");
   });
 });

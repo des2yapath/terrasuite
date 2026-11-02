@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import type { ReactNode } from "react";
 import { useAuth } from "@/auth/useAuth";
 import { Loader2, Leaf } from "lucide-react";
 
@@ -7,7 +8,7 @@ import { Loader2, Leaf } from "lucide-react";
  * boundary. Real authorization is Row Level Security (Module 02) and
  * JWT verification on edge functions (Module 15).
  */
-export function RequireAuth() {
+export function RequireAuth({ children }: { children?: ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -28,5 +29,5 @@ export function RequireAuth() {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  return <Outlet />;
+  return children ?? <Outlet />;
 }

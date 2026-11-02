@@ -4,7 +4,9 @@ import { describe, it, expect } from "vitest";
 import { detectEdgeCase, EDGE_THRESHOLDS } from "@/lib/edge-cases";
 import type { Parcel } from "@/data/parcel";
 
-function parcel(over: Partial<Parcel>): Parcel {
+type ParcelOverrides = Omit<Partial<Parcel>, "coordinates"> & { coordinates?: unknown };
+
+function parcel(over: ParcelOverrides): Parcel {
   return {
     id: "fx", name: "Fixture", crop: "Wheat", cropEmoji: "🌾", areaHa: 2,
     color: "#16A34A", group: "", location: "Somewhere", ndviChange: null,
@@ -14,7 +16,6 @@ function parcel(over: Partial<Parcel>): Parcel {
   } as Parcel;
 }
 
-const noLandUse = null;
 const plainLandUse = { "Cropland": 60, "Grassland": 30, "Built-up": 5, "Water": 5 };
 const suit = (raw: { elevation_m?: number | null; annual_rainfall_mm?: number | null }) => ({
   soil_quality: 50, water_access: 50, climate: 50, topography: 50, drainage: 50, nutrient_level: 50,
@@ -65,6 +66,15 @@ describe("detectEdgeCase", () => {
   it("polar: southern hemisphere |lat| check", () => {
     const r = detectEdgeCase(parcel({ coordinates: [[0, -67], [1, -67], [1, -68], [0, -68], [0, -67]] }), suit({}), null, null, plainLandUse);
     expect(r?.type).toBe("polar");
+  });
+
+  it("polar: reads the canonical nested GeoJSON ring", () => {
+    const r = detectEdgeCase(parcel({ coordinates: [[[20, 67], [21, 67], [21, 68], [20, 68], [20, 67]]] }), suit({}), null, null, plainLandUse);
+    expect(r?.type).toBe("polar");
+  });
+
+  it("empty coordinates never crash or produce a false polar verdict", () => {
+    expect(detectEdgeCase(parcel({ coordinates: [] }), suit({}), null, null, plainLandUse)).toBeNull();
   });
 
   it("altitude: > 5000 m triggers", () => {
